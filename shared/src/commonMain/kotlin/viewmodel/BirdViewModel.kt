@@ -1,6 +1,5 @@
 package viewmodel
 
-import androidx.compose.runtime.mutableStateOf
 import dev.icerock.moko.mvvm.viewmodel.ViewModel
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -27,23 +26,49 @@ class BirdViewModel : ViewModel() {
     }
 
     init {
+        fetchListOfBirds()
+    }
+
+    fun fetchListOfBirds() {
         viewModelScope.launch {
+            val listOfBirds = getListOfBird()
+            val listOfCategory = listOfBirds.map { category -> category.category }.toSet()
+            val defaultSelectedCategory = listOfCategory.firstOrNull().orEmpty()
+            val filteredByDefault = listOfBirds.filter { bird -> bird.category  == defaultSelectedCategory}
+
             _birdState.update { birdState ->
                 birdState.copy(
-                    listOfBird = getListOfBird()
+                    listOfBird = listOfBirds,
+                    listOfFilteredBird = filteredByDefault,
+                    listOfCategory = listOfCategory.toList(),
+                    selectedCategory = defaultSelectedCategory
                 )
             }
         }
     }
 
-    private suspend fun getListOfBird(): List<Bird> {
-        val result = httpClient
-            .get("https://sebastianaigner.github.io/demo-image-api/pictures.json")
-            .body<List<Bird>>()
+    fun selectCategory(category: String) {
+        val filteredBirds = filterSelectedCategory(category)
 
-        println(result)
-
-        return result
+        _birdState.update { birdState ->
+            birdState.copy(listOfFilteredBird = filteredBirds)
+        }
     }
 
+    override fun onCleared() {
+        httpClient.close()
+        super.onCleared()
+    }
+
+    private fun filterSelectedCategory(selectedCategory: String): List<Bird> {
+        return _birdState.value.listOfBird.filter { bird ->
+            selectedCategory == bird.category
+        }
+    }
+
+    private suspend fun getListOfBird(): List<Bird> {
+        return httpClient
+            .get("https://sebastianaigner.github.io/demo-image-api/pictures.json")
+            .body<List<Bird>>()
+    }
 }
